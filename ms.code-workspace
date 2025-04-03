@@ -1,0 +1,14 @@
+{
+  "folders": [
+	{
+		"path": "../client-gateway"
+	},
+	{
+		"path": "../products-ms"
+	},
+	{
+		"path": "."
+	}
+],
+  "settings": {}
+}
