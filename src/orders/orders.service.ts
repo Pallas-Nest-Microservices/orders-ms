@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { PrismaClient } from '@prisma/client';
+import { $Enums, PrismaClient } from '@prisma/client';
 
 import { NATS_SERVICE } from 'src/config/servers';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
@@ -14,6 +14,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderPaginationDto } from './dto/order-pagination.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { firstValueFrom } from 'rxjs';
+import { OrderWithProducts } from './interfaces/order-with-products.interface';
+import { PaidOrderDto } from './dto';
 
 @Injectable()
 export class OrdersService extends PrismaClient implements OnModuleInit {
@@ -26,6 +28,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
   async onModuleInit() {
     await this.$connect();
     this.logger.log('Connected to the database');
+  }
+
+  async createPaymentSession(order: OrderWithProducts) {
+    const paymentSession = await firstValueFrom(
+      this.client.send('create.payment.session', {
+        orderId: order.id,
+        currency: 'usd',
+        items: order.orderItem.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      }),
+    );
+
+    return paymentSession;
   }
 
   async create(createOrderDto: CreateOrderDto) {
@@ -85,6 +103,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         })),
       };
     } catch (error) {
+      console.log(error);
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
         message: 'Check logs',
@@ -163,5 +182,26 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     await this.findOne(id);
 
     return this.order.update({ where: { id }, data: { status } });
+  }
+
+  async paidOrder(paidOrderDto: PaidOrderDto) {
+    this.logger.log('Paid order ', paidOrderDto);
+
+    const order = await this.order.update({
+      where: { id: paidOrderDto.orderId },
+      data: {
+        status: 'PAID',
+        paid: true,
+        paidAt: new Date(),
+        stripeChargeId: paidOrderDto.stripePaymentId,
+        OrderReceipt: {
+          create: {
+            receiptUrl: paidOrderDto.receiptUrl,
+          },
+        },
+      },
+    });
+
+    return order;
   }
 }
