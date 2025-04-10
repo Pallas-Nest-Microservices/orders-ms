@@ -1,7 +1,7 @@
 import { OrderStatus } from '@prisma/client';
 
 export const OrderStatusList = [
-  OrderStatus.CANCELED,
+  OrderStatus.CANCELLED,
   OrderStatus.DELIVERED,
   OrderStatus.PENDING,
 ];
